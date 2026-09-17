@@ -17,7 +17,7 @@ async def main():
         {"role": "user", "content": "Hello! How are you?"},
     ]
 
-    async for event in llm_client.chat_completion(messages, stream=False):
+    async for event in llm_client.chat_completion(messages, stream=True):
         print(event)
     await llm_client.close()
 

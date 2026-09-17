@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from openai import AsyncOpenAI
 
@@ -44,8 +44,10 @@ class LLMClient:
         self,
         client: AsyncOpenAI,
         kwargs: dict[str, Any],
-    ):
-        pass
+    ) -> AsyncGenerator[StreamEvent, None]:
+        response = await client.chat.completions.create(**kwargs)
+        async for chunk in response:
+            print(chunk)
 
     async def _non_stream_response(
         self,
