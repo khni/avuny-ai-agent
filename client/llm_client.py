@@ -35,7 +35,8 @@ class LLMClient:
             "max_tokens": 512,
         }
         if stream:
-            await self._stream_response(client, kwargs)
+            async for event in self._stream_response(client, kwargs):
+                yield event
         else:
             event = await self._non_stream_response(client, kwargs)
             yield event
@@ -47,7 +48,7 @@ class LLMClient:
     ) -> AsyncGenerator[StreamEvent, None]:
         response = await client.chat.completions.create(**kwargs)
         async for chunk in response:
-            print(chunk)
+            yield chunk
 
     async def _non_stream_response(
         self,
