@@ -1,7 +1,8 @@
+import asyncio
 import os
 from typing import Any, AsyncGenerator
 
-from openai import AsyncOpenAI
+from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 
 from client.response import (
     StreamEvent,
@@ -33,21 +34,58 @@ class LLMClient:
             self._client = None
 
     async def chat_completion(
-        self, messages: list[dict[str, Any]], stream: bool = True
-    ):
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = True,
+    ) -> AsyncGenerator[StreamEvent, None]:
         client = self.get_client()
+
         kwargs = {
-            "model": "~deepseek/deepseek-pro-latest",
+            "model": self.config.model_name,
             "messages": messages,
             "stream": stream,
-            "max_tokens": 512,
         }
-        if stream:
-            async for event in self._stream_response(client, kwargs):
-                yield event
-        else:
-            event = await self._non_stream_response(client, kwargs)
-            yield event
+
+        if tools:
+            kwargs["tools"] = self._build_tools(tools)
+            kwargs["tool_choice"] = "auto"
+
+        for attempt in range(self._max_retries + 1):
+            try:
+                if stream:
+                    async for event in self._stream_response(client, kwargs):
+                        yield event
+                else:
+                    event = await self._non_stream_response(client, kwargs)
+                    yield event
+                return
+            except RateLimitError as e:
+                if attempt < self._max_retries:
+                    wait_time = 2**attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    yield StreamEvent(
+                        type=StreamEventType.ERROR,
+                        error=f"Rate limit exceeded: {e}",
+                    )
+                    return
+            except APIConnectionError as e:
+                if attempt < self._max_retries:
+                    wait_time = 2**attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    yield StreamEvent(
+                        type=StreamEventType.ERROR,
+                        error=f"Connection error: {e}",
+                    )
+                    return
+            except APIError as e:
+                yield StreamEvent(
+                    type=StreamEventType.ERROR,
+                    error=f"API error: {e}",
+                )
+                return
 
     async def _stream_response(
         self,
