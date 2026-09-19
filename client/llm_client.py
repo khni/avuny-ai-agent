@@ -1,31 +1,29 @@
 import asyncio
-import os
 from typing import Any, AsyncGenerator
-
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 
 from client.response import (
-    StreamEvent,
     StreamEventType,
+    StreamEvent,
     TextDelta,
     TokenUsage,
     ToolCall,
-    ToolCallDelta,
-    parse_tool_call_arguments,
 )
+from config.config import Config
 
 
 class LLMClient:
-    def __init__(self) -> None:
+    def __init__(self, config: Config) -> None:
         self._client: AsyncOpenAI | None = None
+        self._max_retries: int = 3
+        self.config = config
 
     def get_client(self) -> AsyncOpenAI:
         if self._client is None:
             self._client = AsyncOpenAI(
-                api_key=os.environ["OPENROUTER_API_KEY"],  # fail fast if missing
-                base_url=os.environ["OPENROUTER_BASE_URL"],
+                api_key=self.config.api_key,
+                base_url=self.config.base_url,
             )
-
         return self._client
 
     async def close(self) -> None:
@@ -121,52 +119,6 @@ class LLMClient:
                     type=StreamEventType.TEXT_DELTA,
                     text_delta=TextDelta(delta.content),
                 )
-
-            if delta.tool_calls:
-                for tool_call_delta in delta.tool_calls:
-                    idx = tool_call_delta.index
-
-                    if idx not in tool_calls:
-                        tool_calls[idx] = {
-                            "id": tool_call_delta.id or "",
-                            "name": "",
-                            "arguments": "",
-                        }
-
-                        if tool_call_delta.function:
-                            if tool_call_delta.function.name:
-                                tool_calls[idx]["name"] = tool_call_delta.function.name
-                                yield StreamEvent(
-                                    type=StreamEventType.TOOL_CALL_START,
-                                    tool_call_delta=ToolCallDelta(
-                                        call_id=tool_calls[idx]["id"],
-                                        name=tool_call_delta.function.name,
-                                    ),
-                                )
-
-                        if tool_call_delta.function.arguments:
-                            tool_calls[idx][
-                                "arguments"
-                            ] += tool_call_delta.function.arguments
-
-                            yield StreamEvent(
-                                type=StreamEventType.TOOL_CALL_DELTA,
-                                tool_call_delta=ToolCallDelta(
-                                    call_id=tool_calls[idx]["id"],
-                                    name=tool_call_delta.function.name,
-                                    arguments_delta=tool_call_delta.function.arguments,
-                                ),
-                            )
-
-        for idx, tc in tool_calls.items():
-            yield StreamEvent(
-                type=StreamEventType.TOOL_CALL_COMPLETE,
-                tool_call=ToolCall(
-                    call_id=tc["id"],
-                    name=tc["name"],
-                    arguments=parse_tool_call_arguments(tc["arguments"]),
-                ),
-            )
 
         yield StreamEvent(
             type=StreamEventType.MESSAGE_COMPLETE,

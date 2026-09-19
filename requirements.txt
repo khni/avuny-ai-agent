@@ -2,3 +2,6 @@ openai
 python-dotenv
 black
 click
+tomli
+rich
+tiktoken
