@@ -33,6 +33,9 @@ class ModelConfig(BaseModel):
 
     # How many "tokens" (words/pieces of text) the AI can remember at once.
     context_window: int = 256_000
+    
+    # How many tokens the AI can generate in a single response. This is a safety limit.
+    max_tokens: int = 4096
 
 
 class ShellEnvironmentPolicy(BaseModel):
@@ -203,6 +206,14 @@ class Config(BaseModel):
     @temperature.setter
     def temperature(self, value: str) -> None:
         self.model.temperature = value
+
+    @property
+    def max_tokens(self) -> int:
+        return self.model.max_tokens
+
+    @max_tokens.setter
+    def max_tokens(self, value: int) -> None:
+        self.model.max_tokens = value
 
     def validate(self) -> list[str]:
         """

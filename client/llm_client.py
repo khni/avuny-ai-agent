@@ -41,6 +41,7 @@ class LLMClient:
 
         kwargs = {
             "model": self.config.model_name,
+            "max_tokens": self.config.max_tokens,
             "messages": messages,
             "stream": stream,
         }
