@@ -5,3 +5,4 @@ click
 tomli
 rich
 tiktoken
+pydantic
