@@ -6,6 +6,7 @@ from client import llm_client
 from client.llm_client import LLMClient
 from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage
 from config.config import Config
+from context.manager import ContextManager
 
 
 class Agent:
@@ -15,9 +16,11 @@ class Agent:
     ):
         self.config = config
         self.client = LLMClient(config)
+        self.context_manager = ContextManager(self.config)
 
     async def run(self, message: str):
         yield AgentEvent.agent_start(message)
+        self.context_manager.add_user_message(message)
 
         final_response: str | None = None
 
@@ -31,10 +34,7 @@ class Agent:
 
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
 
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Hello! How are you?"},
-        ]
+        messages = self.context_manager.get_messages()
 
         response_text = ""
 
@@ -53,6 +53,7 @@ class Agent:
             elif event.type == StreamEventType.MESSAGE_COMPLETE:
                 usage = event.usage
         if response_text:
+            self.context_manager.add_assistant_message(response_text)
             yield AgentEvent.text_complete(response_text)
             # self.session.loop_detector.record_action(
             #     "response",
