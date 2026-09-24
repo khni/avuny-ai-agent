@@ -6,3 +6,5 @@ tomli
 rich
 tiktoken
 pydantic
+httpx
+ddgs

@@ -7,6 +7,7 @@ from client.llm_client import LLMClient
 from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage
 from config.config import Config
 from context.manager import ContextManager
+from tools.registry import create_default_registry
 
 
 class Agent:
@@ -17,6 +18,7 @@ class Agent:
         self.config = config
         self.client = LLMClient(config)
         self.context_manager = ContextManager(self.config)
+        self.tool_registry = create_default_registry(config)
 
     async def run(self, message: str):
         yield AgentEvent.agent_start(message)
@@ -38,9 +40,13 @@ class Agent:
 
         response_text = ""
 
+        tool_schemas = self.tool_registry.get_schemas()
+
         usage: TokenUsage | None = None
 
-        async for event in self.client.chat_completion(messages, stream=True):
+        async for event in self.client.chat_completion(
+            messages, tools=tool_schemas if tool_schemas else None, stream=True
+        ):
             if event.type == StreamEventType.TEXT_DELTA:
                 if event.text_delta:
                     content = event.text_delta.content
