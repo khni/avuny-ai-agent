@@ -61,8 +61,26 @@ class Agent:
                 )
             elif event.type == StreamEventType.MESSAGE_COMPLETE:
                 usage = event.usage
+        self.context_manager.add_assistant_message(
+            response_text or None,
+            (
+                [
+                    {
+                        "id": tc.call_id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": str(tc.arguments),
+                        },
+                    }
+                    for tc in tool_calls
+                ]
+                if tool_calls
+                else None
+            ),
+        )
         if response_text:
-            self.context_manager.add_assistant_message(response_text)
+
             yield AgentEvent.text_complete(response_text)
             # self.session.loop_detector.record_action(
             #     "response",
